@@ -10,10 +10,8 @@ export function Navbar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const scrollToWaitlist = useCallback(() => {
-    document
-      .getElementById("waitlist")
-      ?.scrollIntoView({ behavior: "smooth" });
+  const scrollToSection = useCallback((id: string) => {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   }, []);
 
   return (
@@ -26,9 +24,33 @@ export function Navbar() {
     >
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <Logo size="sm" />
-        <button onClick={scrollToWaitlist} className="btn btn-primary text-sm">
-          Join Waitlist
-        </button>
+
+        <div className="flex items-center gap-6">
+          <button
+            onClick={() => scrollToSection("about")}
+            className="hidden text-sm text-zinc-400 transition-colors hover:text-white md:block"
+          >
+            About
+          </button>
+          <button
+            onClick={() => scrollToSection("careers")}
+            className="hidden text-sm text-zinc-400 transition-colors hover:text-white md:block"
+          >
+            Careers
+          </button>
+          <a
+            href="mailto:michas@spectradj.com"
+            className="hidden text-sm text-zinc-400 transition-colors hover:text-white md:block"
+          >
+            Contact
+          </a>
+          <button
+            onClick={() => scrollToSection("waitlist")}
+            className="btn btn-primary text-sm"
+          >
+            Join Waitlist
+          </button>
+        </div>
       </div>
     </nav>
   );
