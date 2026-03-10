@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { Logo } from "./Logo";
+import { WaveformAnimation } from "./WaveformAnimation";
 
 export function Hero() {
   const scrollToWaitlist = useCallback(() => {
@@ -29,13 +30,9 @@ export function Hero() {
           AI-powered stem separation and remixing for DJs and producers
         </p>
 
-        {/* WebGL animation container — Task 5 will render here */}
+        {/* WebGL waveform stem-split animation */}
         <div className="my-12 h-[200px] w-full max-w-3xl md:h-[280px]">
-          <div className="flex h-full items-center justify-center rounded-xl border border-white/5 bg-white/[0.02]">
-            <span className="text-sm text-zinc-600">
-              WebGL Animation Placeholder
-            </span>
-          </div>
+          <WaveformAnimation />
         </div>
 
         <button
