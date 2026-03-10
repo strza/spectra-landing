@@ -9,7 +9,7 @@ export function Hero() {
   }, []);
 
   return (
-    <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 md:px-6">
+    <section className="relative flex flex-col items-center justify-center overflow-hidden px-4 pt-32 pb-16 md:px-6 md:pt-40 md:pb-20">
       {/* Subtle radial gradient for depth */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-1/2 top-1/3 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/[0.06] blur-[100px]" />
