@@ -1,46 +1,19 @@
-import { useRef, useEffect, useMemo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useRef, useMemo } from "react";
+import gsap from "gsap";
+import { useGSAP } from "@gsap/react";
+
+gsap.registerPlugin(useGSAP);
 
 // ─── Config ────────────────────────────────────────────────────────
 
-const DATA_POINTS = 400;
-const CYCLE_DURATION = 13; // seconds
-
-// Phase timings (seconds)
-const P1_END = 2.5; // Track
-const P2_END = 5.5; // Spectral reveal
-const P3_END = 8.5; // Separation
-const P4_END = 11; // Remix
-const P5_END = 13; // Recombine
-
-// Stem colors
+const POINTS = 200; // Bezier control points per waveform
 const STEM_COLORS = {
-  vocals: { r: 149, g: 128, b: 255 }, // #9580FF
-  drums: { r: 255, g: 107, b: 74 }, // #FF6B4A
-  instruments: { r: 61, g: 220, b: 132 }, // #3DDC84
+  vocals: "#9580FF",
+  drums: "#FF6B4A",
+  instruments: "#3DDC84",
 };
 
-// Section structure colors (matching main app)
-const SECTION_COLORS = [
-  { flex: 1, color: "#7C8BFF", label: "Intro" },
-  { flex: 1.5, color: "#E8A54F", label: "Build" },
-  { flex: 2, color: "#F06858", label: "Drop" },
-  { flex: 1, color: "#36D9CA", label: "Break" },
-  { flex: 2, color: "#F06858", label: "Drop" },
-  { flex: 1, color: "#B78EE0", label: "Outro" },
-];
-
-// ─── Easing ────────────────────────────────────────────────────────
-
-function easeInOutCubic(t: number): number {
-  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-}
-
-function easeOutQuart(t: number): number {
-  return 1 - Math.pow(1 - t, 4);
-}
-
-// ─── Data Generation ───────────────────────────────────────────────
+// ─── Waveform Path Generation ──────────────────────────────────────
 
 function seededRng(seed: number) {
   let s = seed;
@@ -50,477 +23,535 @@ function seededRng(seed: number) {
   };
 }
 
-interface TrackData {
-  envelope: Float32Array;
-  bass: Float32Array;
-  mid: Float32Array;
-  high: Float32Array;
-}
-
-interface StemData {
-  vocals: Float32Array;
-  drums: Float32Array;
-  instruments: Float32Array;
-}
-
-function generateTrackData(count: number, seed: number): TrackData {
+/** Generate a smooth SVG path string for a mirrored waveform envelope */
+function generateWaveformPath(
+  width: number,
+  height: number,
+  seed: number,
+  amplitudeScale: number = 1
+): string {
   const rng = seededRng(seed);
-  const envelope = new Float32Array(count);
-  const bass = new Float32Array(count);
-  const mid = new Float32Array(count);
-  const high = new Float32Array(count);
+  const midY = height / 2;
+  const maxAmp = midY * 0.78 * amplitudeScale;
 
-  // Build musical envelope
-  for (let i = 0; i < count; i++) {
-    const t = i / count;
-
-    // Musical structure: intro → build → chorus → break → chorus → outro
+  // Generate amplitude envelope
+  const amps: number[] = [];
+  for (let i = 0; i < POINTS; i++) {
+    const t = i / POINTS;
+    // Musical structure
     let env =
-      0.15 +
-      0.5 * Math.sin(t * Math.PI) +
-      0.2 * Math.pow(Math.sin(t * Math.PI * 2), 2) +
-      0.15 * Math.max(0, Math.sin(t * Math.PI * 4)) * Math.sin(t * Math.PI);
-
-    // Add micro-dynamics
-    env += 0.08 * (rng() - 0.5);
-    // Transients
-    if (rng() > 0.94) env += 0.1 * rng();
-
-    envelope[i] = Math.max(0.03, Math.min(1, env));
-
-    // Frequency distribution varies with song structure
-    const chorusness = Math.max(0, Math.sin(t * Math.PI * 4));
-    const buildness = Math.max(0, Math.sin(t * Math.PI * 2 - Math.PI / 4));
-
-    let b = 0.3 + 0.25 * chorusness + 0.12 * rng();
-    let m = 0.3 + 0.15 * buildness + 0.12 * rng();
-    let h = 0.2 + 0.1 * (1 - chorusness) + 0.12 * rng();
-
-    const total = b + m + h;
-    bass[i] = b / total;
-    mid[i] = m / total;
-    high[i] = h / total;
+      0.12 +
+      0.52 * Math.sin(t * Math.PI) +
+      0.18 * Math.pow(Math.sin(t * Math.PI * 2), 2) +
+      0.12 * Math.max(0, Math.sin(t * Math.PI * 4)) * Math.sin(t * Math.PI);
+    env += 0.06 * (rng() - 0.5);
+    if (rng() > 0.95) env += 0.08 * rng();
+    amps.push(Math.max(0.02, Math.min(1, env)));
   }
 
-  // Smooth the envelope
-  const smoothed = new Float32Array(count);
-  for (let i = 0; i < count; i++) {
-    let sum = 0;
-    let n = 0;
-    for (let j = Math.max(0, i - 2); j <= Math.min(count - 1, i + 2); j++) {
-      sum += envelope[j];
+  // Smooth
+  const smoothed: number[] = [];
+  for (let i = 0; i < POINTS; i++) {
+    let sum = 0,
+      n = 0;
+    for (let j = Math.max(0, i - 3); j <= Math.min(POINTS - 1, i + 3); j++) {
+      sum += amps[j];
       n++;
     }
-    smoothed[i] = sum / n;
+    smoothed.push(sum / n);
   }
 
-  return { envelope: smoothed, bass, mid, high };
-}
+  // Build top path (positive amplitude) and bottom path (mirrored)
+  const step = width / POINTS;
+  const topPoints: string[] = [];
+  const bottomPoints: string[] = [];
 
-function generateStemData(track: TrackData): StemData {
-  const count = track.envelope.length;
-  const vocals = new Float32Array(count);
-  const drums = new Float32Array(count);
-  const instruments = new Float32Array(count);
-
-  for (let i = 0; i < count; i++) {
-    const e = track.envelope[i];
-    // Each stem gets its frequency band portion of the envelope
-    vocals[i] = e * track.mid[i] * 1.4; // Boost mids for vocals
-    drums[i] = e * track.bass[i] * 1.3; // Boost bass for drums
-    instruments[i] = e * (track.high[i] + track.mid[i] * 0.3) * 1.1;
-
-    // Clamp
-    vocals[i] = Math.min(1, vocals[i]);
-    drums[i] = Math.min(1, drums[i]);
-    instruments[i] = Math.min(1, instruments[i]);
+  for (let i = 0; i < POINTS; i++) {
+    const x = i * step;
+    const a = smoothed[i] * maxAmp;
+    topPoints.push(`${x},${midY - a}`);
+    bottomPoints.push(`${x},${midY + a}`);
   }
 
-  return { vocals, drums, instruments };
-}
+  // Close the shape: go across the top, then back across the bottom
+  // Using smooth curve commands for bezier interpolation
+  let d = `M 0,${midY} `;
 
-// Remix segment offsets (which segments shift during remix phase)
-const SEGMENT_COUNT = 6;
-function getSegmentIndex(col: number, total: number): number {
-  return Math.min(SEGMENT_COUNT - 1, Math.floor((col / total) * SEGMENT_COUNT));
-}
-// Only some segments move, and by different amounts
-const REMIX_SHIFTS = [0, 0.08, -0.06, 0.1, -0.04, 0]; // as fraction of total width
-
-// ─── Canvas Renderer ───────────────────────────────────────────────
-
-function render(
-  canvas: HTMLCanvasElement,
-  time: number,
-  track: TrackData,
-  stems: StemData
-) {
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-
-  const dpr = window.devicePixelRatio || 1;
-  const rect = canvas.getBoundingClientRect();
-  const W = rect.width * dpr;
-  const H = rect.height * dpr;
-
-  if (canvas.width !== W || canvas.height !== H) {
-    canvas.width = W;
-    canvas.height = H;
-  }
-
-  ctx.clearRect(0, 0, W, H);
-
-  const t = time % CYCLE_DURATION;
-  const midY = H / 2;
-  const colW = W / DATA_POINTS;
-  const maxBarH = midY * 0.8;
-
-  // ── Phase 1: White waveform ──
-
-  if (t < P1_END) {
-    const pulse = 1 + 0.02 * Math.sin(time * 2.5);
-    ctx.fillStyle = "rgba(220, 220, 230, 0.85)";
-
-    for (let i = 0; i < DATA_POINTS; i++) {
-      const x = i * colW;
-      const h = track.envelope[i] * maxBarH * pulse;
-      ctx.fillRect(x, midY - h, Math.max(1, colW - 0.5), h * 2);
-    }
-    return;
-  }
-
-  // ── Phase 2: Spectral reveal (scan line sweeps L→R) ──
-
-  if (t < P2_END) {
-    const progress = (t - P1_END) / (P2_END - P1_END);
-    const scanX = easeOutQuart(progress) * W;
-
-    // Draw waveform: spectral left of scan, white right of scan
-    for (let i = 0; i < DATA_POINTS; i++) {
-      const x = i * colW;
-      const h = track.envelope[i] * maxBarH;
-
-      if (x + colW < scanX) {
-        // Spectral colored — stacked frequency bars
-        const bassH = h * track.bass[i];
-        const midH = h * track.mid[i];
-        const highH = h * track.high[i];
-
-        // Draw from center outward (mirrored)
-        // Bass (bottom of spectrum = center of waveform)
-        ctx.fillStyle = `rgba(255, 80, 50, 0.85)`;
-        ctx.fillRect(x, midY - bassH, Math.max(1, colW - 0.5), bassH * 2);
-
-        // Mid (above/below bass)
-        ctx.fillStyle = `rgba(100, 210, 120, 0.8)`;
-        ctx.fillRect(
-          x,
-          midY - bassH - midH,
-          Math.max(1, colW - 0.5),
-          midH
-        );
-        ctx.fillRect(x, midY + bassH, Math.max(1, colW - 0.5), midH);
-
-        // High (outermost)
-        ctx.fillStyle = `rgba(130, 140, 255, 0.75)`;
-        ctx.fillRect(
-          x,
-          midY - bassH - midH - highH,
-          Math.max(1, colW - 0.5),
-          highH
-        );
-        ctx.fillRect(
-          x,
-          midY + bassH + midH,
-          Math.max(1, colW - 0.5),
-          highH
-        );
-      } else {
-        // White waveform (not yet scanned)
-        ctx.fillStyle = "rgba(220, 220, 230, 0.85)";
-        ctx.fillRect(x, midY - h, Math.max(1, colW - 0.5), h * 2);
-      }
-    }
-
-    // Scan line with glow
-    ctx.save();
-    ctx.shadowColor = "#7C8BFF";
-    ctx.shadowBlur = 20 * dpr;
-    ctx.strokeStyle = "rgba(124, 139, 255, 0.9)";
-    ctx.lineWidth = 2 * dpr;
-    ctx.beginPath();
-    ctx.moveTo(scanX, 0);
-    ctx.lineTo(scanX, H);
-    ctx.stroke();
-    ctx.restore();
-
-    // Second glow pass for intensity
-    ctx.save();
-    ctx.shadowColor = "#B78EE0";
-    ctx.shadowBlur = 40 * dpr;
-    ctx.strokeStyle = "rgba(183, 142, 224, 0.4)";
-    ctx.lineWidth = 1 * dpr;
-    ctx.beginPath();
-    ctx.moveTo(scanX, 0);
-    ctx.lineTo(scanX, H);
-    ctx.stroke();
-    ctx.restore();
-
-    return;
-  }
-
-  // ── Phase 3: Separation ──
-
-  if (t < P3_END) {
-    const progress = easeInOutCubic((t - P2_END) / (P3_END - P2_END));
-    const separation = progress * H * 0.28; // How far apart stems spread
-    const colorBlend = progress; // 0 = spectral, 1 = stem color
-
-    // Three stem positions: vocals up, drums center, instruments down
-    const stemYOffsets = [
-      -separation, // vocals (up)
-      0, // drums (center)
-      separation, // instruments (down)
-    ];
-    const stemEnvelopes = [stems.vocals, stems.drums, stems.instruments];
-    const stemColors = [
-      STEM_COLORS.vocals,
-      STEM_COLORS.drums,
-      STEM_COLORS.instruments,
-    ];
-    // Source spectral colors for each stem
-    const spectralBase = [
-      { r: 100, g: 210, b: 120 }, // mids → vocals
-      { r: 255, g: 80, b: 50 }, // bass → drums
-      { r: 130, g: 140, b: 255 }, // highs → instruments
-    ];
-
-    for (let s = 0; s < 3; s++) {
-      const yOff = stemYOffsets[s];
-      const env = stemEnvelopes[s];
-      const sc = stemColors[s];
-      const sp = spectralBase[s];
-
-      // Lerp color from spectral to stem color
-      const r = Math.round(sp.r + (sc.r - sp.r) * colorBlend);
-      const g = Math.round(sp.g + (sc.g - sp.g) * colorBlend);
-      const b = Math.round(sp.b + (sc.b - sp.b) * colorBlend);
-
-      const alpha = 0.75 + 0.15 * colorBlend;
-
-      ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
-
-      // Glow during separation
-      if (progress > 0.3) {
-        ctx.shadowColor = `rgba(${sc.r}, ${sc.g}, ${sc.b}, 0.3)`;
-        ctx.shadowBlur = 6 * dpr * progress;
-      }
-
-      for (let i = 0; i < DATA_POINTS; i++) {
-        const x = i * colW;
-        const h = env[i] * maxBarH * 0.85;
-        ctx.fillRect(
-          x,
-          midY + yOff - h,
-          Math.max(1, colW - 0.5),
-          h * 2
-        );
-      }
-
-      ctx.shadowBlur = 0;
-    }
-
-    return;
-  }
-
-  // ── Phase 4: Remix (segments shift) ──
-
-  if (t < P4_END) {
-    const progress = easeInOutCubic((t - P3_END) / (P4_END - P3_END));
-    const separation = H * 0.28;
-
-    const stemYOffsets = [-separation, 0, separation];
-    const stemEnvelopes = [stems.vocals, stems.drums, stems.instruments];
-    const stemColors = [
-      STEM_COLORS.vocals,
-      STEM_COLORS.drums,
-      STEM_COLORS.instruments,
-    ];
-
-    for (let s = 0; s < 3; s++) {
-      const yOff = stemYOffsets[s];
-      const env = stemEnvelopes[s];
-      const sc = stemColors[s];
-
-      ctx.fillStyle = `rgba(${sc.r}, ${sc.g}, ${sc.b}, 0.9)`;
-
-      for (let i = 0; i < DATA_POINTS; i++) {
-        const seg = getSegmentIndex(i, DATA_POINTS);
-        const shift = REMIX_SHIFTS[seg] * W * progress;
-        const x = i * colW + shift;
-        const h = env[i] * maxBarH * 0.85;
-
-        // Glow on moving segments
-        if (REMIX_SHIFTS[seg] !== 0) {
-          ctx.shadowColor = `rgba(${sc.r}, ${sc.g}, ${sc.b}, ${0.4 * progress})`;
-          ctx.shadowBlur = 8 * dpr * progress;
-        } else {
-          ctx.shadowBlur = 0;
-        }
-
-        ctx.fillRect(
-          x,
-          midY + yOff - h,
-          Math.max(1, colW - 0.5),
-          h * 2
-        );
-      }
-
-      ctx.shadowBlur = 0;
-    }
-
-    // Draw segment boundaries on each stem
-    if (progress > 0.2) {
-      ctx.globalAlpha = progress * 0.3;
-      for (let s = 0; s < 3; s++) {
-        const yOff = stemYOffsets[s];
-        for (let seg = 1; seg < SEGMENT_COUNT; seg++) {
-          const x = (seg / SEGMENT_COUNT) * W;
-          ctx.strokeStyle = "rgba(255, 255, 255, 0.2)";
-          ctx.lineWidth = 1 * dpr;
-          ctx.setLineDash([4 * dpr, 4 * dpr]);
-          ctx.beginPath();
-          ctx.moveTo(x, midY + yOff - maxBarH);
-          ctx.lineTo(x, midY + yOff + maxBarH);
-          ctx.stroke();
-        }
-      }
-      ctx.setLineDash([]);
-      ctx.globalAlpha = 1;
-    }
-
-    return;
-  }
-
-  // ── Phase 5: Recombine ──
-
-  {
-    const progress = easeInOutCubic((t - P4_END) / (P5_END - P4_END));
-    const separation = H * 0.28 * (1 - progress);
-
-    const stemYOffsets = [-separation, 0, separation];
-    const stemEnvelopes = [stems.vocals, stems.drums, stems.instruments];
-    const stemColors = [
-      STEM_COLORS.vocals,
-      STEM_COLORS.drums,
-      STEM_COLORS.instruments,
-    ];
-
-    for (let s = 0; s < 3; s++) {
-      const yOff = stemYOffsets[s];
-      const env = stemEnvelopes[s];
-      const sc = stemColors[s];
-
-      // As stems merge, reduce individual opacity
-      const alpha = 0.9 - 0.3 * progress;
-
-      for (let i = 0; i < DATA_POINTS; i++) {
-        // Undo remix shifts
-        const seg = getSegmentIndex(i, DATA_POINTS);
-        const shift = REMIX_SHIFTS[seg] * W * (1 - progress);
-        const x = i * colW + shift;
-        const h = env[i] * maxBarH * 0.85;
-
-        // Blend toward gradient
-        const gradientT = i / DATA_POINTS;
-        let gr: number, gg: number, gb: number;
-        if (gradientT < 0.33) {
-          const lt = gradientT / 0.33;
-          gr = STEM_COLORS.vocals.r + (STEM_COLORS.drums.r - STEM_COLORS.vocals.r) * lt;
-          gg = STEM_COLORS.vocals.g + (STEM_COLORS.drums.g - STEM_COLORS.vocals.g) * lt;
-          gb = STEM_COLORS.vocals.b + (STEM_COLORS.drums.b - STEM_COLORS.vocals.b) * lt;
-        } else if (gradientT < 0.66) {
-          const lt = (gradientT - 0.33) / 0.33;
-          gr = STEM_COLORS.drums.r + (STEM_COLORS.instruments.r - STEM_COLORS.drums.r) * lt;
-          gg = STEM_COLORS.drums.g + (STEM_COLORS.instruments.g - STEM_COLORS.drums.g) * lt;
-          gb = STEM_COLORS.drums.b + (STEM_COLORS.instruments.b - STEM_COLORS.drums.b) * lt;
-        } else {
-          const lt = (gradientT - 0.66) / 0.34;
-          gr = STEM_COLORS.instruments.r + (STEM_COLORS.vocals.r - STEM_COLORS.instruments.r) * lt;
-          gg = STEM_COLORS.instruments.g + (STEM_COLORS.vocals.g - STEM_COLORS.instruments.g) * lt;
-          gb = STEM_COLORS.instruments.b + (STEM_COLORS.vocals.b - STEM_COLORS.instruments.b) * lt;
-        }
-
-        const r = Math.round(sc.r + (gr - sc.r) * progress);
-        const g = Math.round(sc.g + (gg - sc.g) * progress);
-        const b = Math.round(sc.b + (gb - sc.b) * progress);
-
-        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
-        ctx.fillRect(
-          x,
-          midY + yOff - h,
-          Math.max(1, colW - 0.5),
-          h * 2
-        );
-      }
+  // Top half — use smooth quadratic bezier
+  for (let i = 0; i < POINTS; i++) {
+    const x = i * step;
+    const a = smoothed[i] * maxAmp;
+    if (i === 0) {
+      d += `L ${x},${midY - a} `;
+    } else {
+      const prevX = (i - 1) * step;
+      const prevA = smoothed[i - 1] * maxAmp;
+      const cpX = (prevX + x) / 2;
+      d += `C ${cpX},${midY - prevA} ${cpX},${midY - a} ${x},${midY - a} `;
     }
   }
+
+  // End cap
+  d += `L ${width},${midY} `;
+
+  // Bottom half — reverse direction
+  for (let i = POINTS - 1; i >= 0; i--) {
+    const x = i * step;
+    const a = smoothed[i] * maxAmp;
+    if (i === POINTS - 1) {
+      d += `L ${x},${midY + a} `;
+    } else {
+      const nextX = (i + 1) * step;
+      const nextA = smoothed[i + 1] * maxAmp;
+      const cpX = (nextX + x) / 2;
+      d += `C ${cpX},${midY + nextA} ${cpX},${midY + a} ${x},${midY + a} `;
+    }
+  }
+
+  d += "Z";
+  return d;
 }
 
-// ─── Phase labels ──────────────────────────────────────────────────
+/** Generate a stem-specific waveform (different character) */
+function generateStemPath(
+  width: number,
+  height: number,
+  stemType: "vocals" | "drums" | "instruments",
+  centerY: number
+): string {
+  const seeds = { vocals: 73, drums: 17, instruments: 129 };
+  const scales = { vocals: 0.55, drums: 0.50, instruments: 0.45 };
+  const rng = seededRng(seeds[stemType]);
+  const maxAmp = (height * 0.22) * scales[stemType];
 
-function getPhaseLabel(
-  t: number
-): { text: string; sub?: string } | null {
-  if (t < P1_END) return null;
-  if (t < P2_END) return { text: "Analyzing frequency spectrum", sub: "FFT" };
-  if (t < P3_END) return { text: "Separating stems" };
-  if (t < P4_END) return { text: "Remixing" };
-  if (t < P5_END) return { text: "New track created" };
-  return null;
+  const amps: number[] = [];
+  for (let i = 0; i < POINTS; i++) {
+    const t = i / POINTS;
+    let env: number;
+    switch (stemType) {
+      case "vocals":
+        env =
+          0.15 +
+          0.6 * Math.sin(t * Math.PI) *
+            (0.7 + 0.3 * Math.abs(Math.sin(t * Math.PI * 5)));
+        env += 0.05 * (rng() - 0.5);
+        break;
+      case "drums":
+        env =
+          0.1 +
+          0.5 * Math.sin(t * Math.PI) +
+          0.3 * Math.pow(Math.abs(Math.sin(t * Math.PI * 8 + rng())), 2.5);
+        env += 0.08 * (rng() - 0.5);
+        break;
+      case "instruments":
+        env =
+          0.12 +
+          0.55 * Math.sin(t * Math.PI) *
+            (0.6 + 0.4 * Math.cos(t * Math.PI * 3));
+        env += 0.04 * (rng() - 0.5);
+        break;
+    }
+    amps.push(Math.max(0.01, Math.min(1, env)));
+  }
+
+  // Smooth
+  const smoothed: number[] = [];
+  for (let i = 0; i < POINTS; i++) {
+    let sum = 0, n = 0;
+    const radius = stemType === "drums" ? 2 : 4;
+    for (let j = Math.max(0, i - radius); j <= Math.min(POINTS - 1, i + radius); j++) {
+      sum += amps[j]; n++;
+    }
+    smoothed.push(sum / n);
+  }
+
+  const step = width / POINTS;
+  let d = `M 0,${centerY} `;
+
+  // Top
+  for (let i = 0; i < POINTS; i++) {
+    const x = i * step;
+    const a = smoothed[i] * maxAmp;
+    if (i === 0) {
+      d += `L ${x},${centerY - a} `;
+    } else {
+      const prevX = (i - 1) * step;
+      const prevA = smoothed[i - 1] * maxAmp;
+      const cpX = (prevX + x) / 2;
+      d += `C ${cpX},${centerY - prevA} ${cpX},${centerY - a} ${x},${centerY - a} `;
+    }
+  }
+
+  d += `L ${width},${centerY} `;
+
+  // Bottom
+  for (let i = POINTS - 1; i >= 0; i--) {
+    const x = i * step;
+    const a = smoothed[i] * maxAmp;
+    if (i === POINTS - 1) {
+      d += `L ${x},${centerY + a} `;
+    } else {
+      const nextX = (i + 1) * step;
+      const nextA = smoothed[i + 1] * maxAmp;
+      const cpX = (nextX + x) / 2;
+      d += `C ${cpX},${centerY + nextA} ${cpX},${centerY + a} ${x},${centerY + a} `;
+    }
+  }
+
+  d += "Z";
+  return d;
 }
 
-// Stem labels shown during separation & remix
-function getStemLabels(t: number): boolean {
-  return t >= P2_END + 1 && t < P5_END - 0.5;
-}
+// Section color strip data
+const SECTIONS = [
+  { offset: 0, width: 0.12, color: "#7C8BFF" },
+  { offset: 0.12, width: 0.15, color: "#E8A54F" },
+  { offset: 0.27, width: 0.22, color: "#F06858" },
+  { offset: 0.49, width: 0.1, color: "#36D9CA" },
+  { offset: 0.59, width: 0.24, color: "#F06858" },
+  { offset: 0.83, width: 0.17, color: "#B78EE0" },
+];
 
 // ─── Component ─────────────────────────────────────────────────────
 
 export function SpectralAnimation() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const animRef = useRef<number>(0);
-  const startRef = useRef<number>(0);
-  const [currentTime, setCurrentTime] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
 
-  const trackData = useMemo(() => generateTrackData(DATA_POINTS, 42), []);
-  const stemData = useMemo(() => generateStemData(trackData), [trackData]);
+  // Refs for animated elements
+  const compositeRef = useRef<SVGPathElement>(null);
+  const vocalsRef = useRef<SVGPathElement>(null);
+  const drumsRef = useRef<SVGPathElement>(null);
+  const instrumentsRef = useRef<SVGPathElement>(null);
+  const scanLineRef = useRef<SVGRectElement>(null);
+  const scanGlowRef = useRef<SVGRectElement>(null);
+  const clipRectRef = useRef<SVGRectElement>(null);
+  const phaseTextRef = useRef<HTMLDivElement>(null);
+  const fftBadgeRef = useRef<HTMLSpanElement>(null);
+  const vocalLabelRef = useRef<HTMLDivElement>(null);
+  const drumLabelRef = useRef<HTMLDivElement>(null);
+  const instrLabelRef = useRef<HTMLDivElement>(null);
+  const sectionStripRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    startRef.current = performance.now();
+  // SVG dimensions
+  const W = 1000;
+  const H = 280;
+  const MID = H / 2;
 
-    function loop(now: number) {
-      const elapsed = (now - startRef.current) / 1000;
-      setCurrentTime(elapsed);
+  // Pre-generate paths
+  const compositePath = useMemo(
+    () => generateWaveformPath(W, H, 42, 1),
+    []
+  );
+  const vocalsPath = useMemo(
+    () => generateStemPath(W, H, "vocals", MID - H * 0.28),
+    []
+  );
+  const drumsPath = useMemo(
+    () => generateStemPath(W, H, "drums", MID),
+    []
+  );
+  const instrumentsPath = useMemo(
+    () => generateStemPath(W, H, "instruments", MID + H * 0.28),
+    []
+  );
 
-      const canvas = canvasRef.current;
-      if (canvas) {
-        render(canvas, elapsed, trackData, stemData);
-      }
+  // Paths at center position (for initial state of stems)
+  const vocalsCenterPath = useMemo(
+    () => generateStemPath(W, H, "vocals", MID),
+    []
+  );
+  const drumsCenterPath = useMemo(
+    () => generateStemPath(W, H, "drums", MID),
+    []
+  );
+  const instrumentsCenterPath = useMemo(
+    () => generateStemPath(W, H, "instruments", MID),
+    []
+  );
 
-      animRef.current = requestAnimationFrame(loop);
-    }
+  useGSAP(
+    () => {
+      const tl = gsap.timeline({ repeat: -1, repeatDelay: 0.5 });
 
-    animRef.current = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(animRef.current);
-  }, [trackData, stemData]);
+      // ── Phase 1: The Track (0 → 2.5s) ──
+      // Composite waveform visible, gentle pulse
+      tl.set(compositeRef.current, { opacity: 1 });
+      tl.set([vocalsRef.current, drumsRef.current, instrumentsRef.current], {
+        opacity: 0,
+      });
+      tl.set(scanLineRef.current, { opacity: 0 });
+      tl.set(scanGlowRef.current, { opacity: 0 });
+      tl.set(clipRectRef.current, { attr: { width: 0 } });
+      tl.set(
+        [vocalLabelRef.current, drumLabelRef.current, instrLabelRef.current],
+        { opacity: 0, x: -10 }
+      );
+      tl.set(phaseTextRef.current, { opacity: 0 });
+      tl.set(fftBadgeRef.current, { opacity: 0, scale: 0.8 });
+      tl.set(sectionStripRef.current, { opacity: 0.5 });
 
-  const t = currentTime % CYCLE_DURATION;
-  const phaseLabel = getPhaseLabel(t);
-  const showStems = getStemLabels(t);
+      // Subtle scale pulse on composite
+      tl.fromTo(
+        compositeRef.current,
+        { scaleY: 0.97, transformOrigin: "center center" },
+        {
+          scaleY: 1.03,
+          duration: 1.2,
+          yoyo: true,
+          repeat: 1,
+          ease: "sine.inOut",
+        },
+        0
+      );
+
+      // ── Phase 2: Spectral Reveal (2.5 → 5.5s) ──
+      const scanStart = 2.5;
+
+      // Show phase text
+      tl.to(phaseTextRef.current, { opacity: 1, duration: 0.3 }, scanStart);
+      tl.to(
+        fftBadgeRef.current,
+        { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(2)" },
+        scanStart
+      );
+
+      // Scan line appears and sweeps
+      tl.set(scanLineRef.current, { opacity: 1 }, scanStart);
+      tl.set(scanGlowRef.current, { opacity: 1 }, scanStart);
+      tl.fromTo(
+        scanLineRef.current,
+        { attr: { x: 0 } },
+        { attr: { x: W }, duration: 3, ease: "power2.out" },
+        scanStart
+      );
+      tl.fromTo(
+        scanGlowRef.current,
+        { attr: { x: -15 } },
+        { attr: { x: W - 15 }, duration: 3, ease: "power2.out" },
+        scanStart
+      );
+
+      // Clip rect reveals the colored stems behind the composite
+      tl.fromTo(
+        clipRectRef.current,
+        { attr: { width: 0 } },
+        { attr: { width: W }, duration: 3, ease: "power2.out" },
+        scanStart
+      );
+
+      // Fade in stems (behind clip) as scan progresses
+      tl.to(
+        vocalsRef.current,
+        { opacity: 0.7, duration: 0.5 },
+        scanStart + 0.3
+      );
+      tl.to(
+        drumsRef.current,
+        { opacity: 0.7, duration: 0.5 },
+        scanStart + 0.3
+      );
+      tl.to(
+        instrumentsRef.current,
+        { opacity: 0.7, duration: 0.5 },
+        scanStart + 0.3
+      );
+
+      // Fade out composite as stems are revealed
+      tl.to(
+        compositeRef.current,
+        { opacity: 0, duration: 1.5 },
+        scanStart + 1.5
+      );
+
+      // ── Phase 3: Separation (5.5 → 8.5s) ──
+      const sepStart = 5.5;
+
+      // Update phase text
+      tl.to(fftBadgeRef.current, { opacity: 0, duration: 0.2 }, sepStart);
+      tl.to(phaseTextRef.current, {
+        opacity: 1,
+        duration: 0.01,
+        onStart: () => {
+          if (phaseTextRef.current)
+            phaseTextRef.current.textContent = "Separating stems";
+        },
+      }, sepStart + 0.2);
+
+      // Hide scan line
+      tl.to(
+        [scanLineRef.current, scanGlowRef.current],
+        { opacity: 0, duration: 0.4 },
+        sepStart
+      );
+
+      // Morph stems from center to separated positions
+      tl.to(
+        vocalsRef.current,
+        {
+          attr: { d: vocalsPath },
+          opacity: 0.9,
+          duration: 2,
+          ease: "power3.inOut",
+        },
+        sepStart + 0.3
+      );
+      tl.to(
+        drumsRef.current,
+        {
+          attr: { d: drumsPath },
+          opacity: 0.9,
+          duration: 2,
+          ease: "power3.inOut",
+        },
+        sepStart + 0.3
+      );
+      tl.to(
+        instrumentsRef.current,
+        {
+          attr: { d: instrumentsPath },
+          opacity: 0.9,
+          duration: 2,
+          ease: "power3.inOut",
+        },
+        sepStart + 0.3
+      );
+
+      // Stem labels fade in staggered
+      tl.to(
+        vocalLabelRef.current,
+        { opacity: 1, x: 0, duration: 0.5, ease: "power2.out" },
+        sepStart + 1.2
+      );
+      tl.to(
+        drumLabelRef.current,
+        { opacity: 1, x: 0, duration: 0.5, ease: "power2.out" },
+        sepStart + 1.4
+      );
+      tl.to(
+        instrLabelRef.current,
+        { opacity: 1, x: 0, duration: 0.5, ease: "power2.out" },
+        sepStart + 1.6
+      );
+
+      // ── Phase 4: Remix (8.5 → 11s) ──
+      const remixStart = 8.5;
+
+      tl.to(phaseTextRef.current, {
+        opacity: 1,
+        duration: 0.01,
+        onStart: () => {
+          if (phaseTextRef.current)
+            phaseTextRef.current.textContent = "Remixing";
+        },
+      }, remixStart);
+
+      // Shift some stem segments via translateX
+      tl.to(
+        vocalsRef.current,
+        {
+          x: 25,
+          duration: 1.5,
+          ease: "power2.inOut",
+        },
+        remixStart + 0.3
+      );
+      tl.to(
+        instrumentsRef.current,
+        {
+          x: -20,
+          duration: 1.5,
+          ease: "power2.inOut",
+        },
+        remixStart + 0.3
+      );
+
+      // ── Phase 5: Recombine (11 → 13s) ──
+      const recombineStart = 11;
+
+      tl.to(phaseTextRef.current, {
+        opacity: 1,
+        duration: 0.01,
+        onStart: () => {
+          if (phaseTextRef.current)
+            phaseTextRef.current.textContent = "New mashup created";
+        },
+      }, recombineStart);
+
+      // Undo remix shifts
+      tl.to(
+        [vocalsRef.current, instrumentsRef.current],
+        { x: 0, duration: 1, ease: "power2.inOut" },
+        recombineStart
+      );
+
+      // Morph stems back to center
+      tl.to(
+        vocalsRef.current,
+        {
+          attr: { d: vocalsCenterPath },
+          opacity: 0.5,
+          duration: 1.5,
+          ease: "power3.inOut",
+        },
+        recombineStart + 0.3
+      );
+      tl.to(
+        drumsRef.current,
+        {
+          attr: { d: drumsCenterPath },
+          opacity: 0.5,
+          duration: 1.5,
+          ease: "power3.inOut",
+        },
+        recombineStart + 0.3
+      );
+      tl.to(
+        instrumentsRef.current,
+        {
+          attr: { d: instrumentsCenterPath },
+          opacity: 0.5,
+          duration: 1.5,
+          ease: "power3.inOut",
+        },
+        recombineStart + 0.3
+      );
+
+      // Fade in composite (now gradient colored via CSS)
+      tl.to(
+        compositeRef.current,
+        { opacity: 0.85, duration: 1, ease: "power2.in" },
+        recombineStart + 1
+      );
+
+      // Fade out stems and labels
+      tl.to(
+        [vocalsRef.current, drumsRef.current, instrumentsRef.current],
+        { opacity: 0, duration: 0.8 },
+        recombineStart + 1.2
+      );
+      tl.to(
+        [
+          vocalLabelRef.current,
+          drumLabelRef.current,
+          instrLabelRef.current,
+        ],
+        { opacity: 0, x: -10, duration: 0.5 },
+        recombineStart + 1
+      );
+
+      // Fade phase text
+      tl.to(
+        phaseTextRef.current,
+        { opacity: 0, duration: 0.5 },
+        recombineStart + 1.5
+      );
+    },
+    { scope: containerRef }
+  );
 
   return (
-    <div className="card relative w-full overflow-hidden p-0">
+    <div ref={containerRef} className="card relative w-full overflow-hidden p-0">
       {/* Title bar */}
       <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-2 md:px-5 md:py-2.5">
         <div className="flex items-center gap-3">
@@ -534,89 +565,181 @@ export function SpectralAnimation() {
           </span>
         </div>
 
-        {/* Phase indicator */}
-        <AnimatePresence mode="wait">
-          {phaseLabel && (
-            <motion.div
-              key={phaseLabel.text}
-              initial={{ opacity: 0, y: -4 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 4 }}
-              transition={{ duration: 0.3 }}
-              className="flex items-center gap-2"
-            >
-              {phaseLabel.sub && (
-                <span className="rounded border border-primary/30 bg-primary/10 px-1.5 py-0.5 font-mono text-[9px] font-medium text-primary md:text-[10px]">
-                  {phaseLabel.sub}
-                </span>
-              )}
-              <span className="font-mono text-[10px] text-zinc-400 md:text-xs">
-                {phaseLabel.text}
-              </span>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <div className="flex items-center gap-2">
+          <span
+            ref={fftBadgeRef}
+            className="rounded border border-primary/30 bg-primary/10 px-1.5 py-0.5 font-mono text-[9px] font-medium text-primary md:text-[10px]"
+            style={{ opacity: 0 }}
+          >
+            FFT
+          </span>
+          <div
+            ref={phaseTextRef}
+            className="font-mono text-[10px] text-zinc-400 md:text-xs"
+            style={{ opacity: 0 }}
+          >
+            Analyzing frequency spectrum
+          </div>
+        </div>
       </div>
 
-      {/* Canvas area */}
+      {/* SVG animation area */}
       <div className="relative">
-        <canvas
-          ref={canvasRef}
+        <svg
+          ref={svgRef}
+          viewBox={`0 0 ${W} ${H}`}
           className="h-[200px] w-full md:h-[280px]"
-        />
+          preserveAspectRatio="none"
+        >
+          <defs>
+            {/* Gradient for composite waveform after recombine */}
+            <linearGradient id="compositeGrad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor={STEM_COLORS.vocals} />
+              <stop offset="35%" stopColor={STEM_COLORS.drums} />
+              <stop offset="65%" stopColor={STEM_COLORS.drums} />
+              <stop offset="100%" stopColor={STEM_COLORS.instruments} />
+            </linearGradient>
+
+            {/* Glow filters */}
+            <filter id="glowVocals" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <filter id="glowDrums" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <filter id="glowInstruments" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+            <filter id="scanGlow" x="-200%" y="0" width="500%" height="100%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="8" />
+            </filter>
+
+            {/* Clip path for spectral reveal */}
+            <clipPath id="revealClip">
+              <rect
+                ref={clipRectRef}
+                x="0"
+                y="0"
+                width="0"
+                height={H}
+              />
+            </clipPath>
+          </defs>
+
+          {/* Composite waveform (white → gradient after recombine) */}
+          <path
+            ref={compositeRef}
+            d={compositePath}
+            fill="url(#compositeGrad)"
+            opacity="1"
+          />
+
+          {/* Stem waveforms (revealed by clip, then morphed to separated positions) */}
+          <g clipPath="url(#revealClip)">
+            <path
+              ref={vocalsRef}
+              d={vocalsCenterPath}
+              fill={STEM_COLORS.vocals}
+              filter="url(#glowVocals)"
+              opacity="0"
+            />
+            <path
+              ref={drumsRef}
+              d={drumsCenterPath}
+              fill={STEM_COLORS.drums}
+              filter="url(#glowDrums)"
+              opacity="0"
+            />
+            <path
+              ref={instrumentsRef}
+              d={instrumentsCenterPath}
+              fill={STEM_COLORS.instruments}
+              filter="url(#glowInstruments)"
+              opacity="0"
+            />
+          </g>
+
+          {/* Scan line */}
+          <rect
+            ref={scanGlowRef}
+            x="0"
+            y="0"
+            width="30"
+            height={H}
+            fill="#7C8BFF"
+            filter="url(#scanGlow)"
+            opacity="0"
+          />
+          <rect
+            ref={scanLineRef}
+            x="0"
+            y="0"
+            width="2"
+            height={H}
+            fill="rgba(124, 139, 255, 0.9)"
+            opacity="0"
+          />
+        </svg>
 
         {/* Stem labels */}
-        <AnimatePresence>
-          {showStems && (
-            <>
-              <motion.div
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -8 }}
-                transition={{ duration: 0.4 }}
-                className="absolute top-3 left-3 flex items-center gap-1.5 md:top-4 md:left-4"
-              >
-                <div className="h-1.5 w-1.5 rounded-full bg-[#9580FF]" />
-                <span className="font-mono text-[9px] font-medium text-[#9580FF]/80 uppercase tracking-wider md:text-[10px]">
-                  Vocals
-                </span>
-              </motion.div>
+        <div
+          ref={vocalLabelRef}
+          className="absolute left-3 flex items-center gap-1.5 md:left-4"
+          style={{ opacity: 0, top: "12%" }}
+        >
+          <div className="h-2 w-2 rounded-full bg-[#9580FF] shadow-[0_0_6px_rgba(149,128,255,0.6)]" />
+          <span className="font-mono text-[10px] font-medium text-[#9580FF] uppercase tracking-wider md:text-xs">
+            Vocals
+          </span>
+        </div>
 
-              <motion.div
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -8 }}
-                transition={{ duration: 0.4, delay: 0.1 }}
-                className="absolute top-1/2 left-3 -translate-y-1/2 flex items-center gap-1.5 md:left-4"
-              >
-                <div className="h-1.5 w-1.5 rounded-full bg-[#FF6B4A]" />
-                <span className="font-mono text-[9px] font-medium text-[#FF6B4A]/80 uppercase tracking-wider md:text-[10px]">
-                  Drums
-                </span>
-              </motion.div>
+        <div
+          ref={drumLabelRef}
+          className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5 md:left-4"
+          style={{ opacity: 0 }}
+        >
+          <div className="h-2 w-2 rounded-full bg-[#FF6B4A] shadow-[0_0_6px_rgba(255,107,74,0.6)]" />
+          <span className="font-mono text-[10px] font-medium text-[#FF6B4A] uppercase tracking-wider md:text-xs">
+            Drums
+          </span>
+        </div>
 
-              <motion.div
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -8 }}
-                transition={{ duration: 0.4, delay: 0.2 }}
-                className="absolute bottom-3 left-3 flex items-center gap-1.5 md:bottom-4 md:left-4"
-              >
-                <div className="h-1.5 w-1.5 rounded-full bg-[#3DDC84]" />
-                <span className="font-mono text-[9px] font-medium text-[#3DDC84]/80 uppercase tracking-wider md:text-[10px]">
-                  Instrumental
-                </span>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
+        <div
+          ref={instrLabelRef}
+          className="absolute left-3 flex items-center gap-1.5 md:left-4"
+          style={{ opacity: 0, bottom: "12%" }}
+        >
+          <div className="h-2 w-2 rounded-full bg-[#3DDC84] shadow-[0_0_6px_rgba(61,220,132,0.6)]" />
+          <span className="font-mono text-[10px] font-medium text-[#3DDC84] uppercase tracking-wider md:text-xs">
+            Instrumental
+          </span>
+        </div>
 
         {/* Section color strip */}
-        <div className="absolute bottom-0 left-0 right-0 flex h-[3px]">
-          {SECTION_COLORS.map((s, i) => (
+        <div
+          ref={sectionStripRef}
+          className="absolute bottom-0 left-0 right-0 flex h-[3px]"
+        >
+          {SECTIONS.map((s, i) => (
             <div
               key={i}
-              style={{ flex: s.flex, backgroundColor: s.color, opacity: 0.5 }}
+              style={{
+                width: `${s.width * 100}%`,
+                backgroundColor: s.color,
+                opacity: 0.5,
+              }}
             />
           ))}
         </div>
