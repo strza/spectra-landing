@@ -15,41 +15,31 @@ export function About() {
         </motion.h2>
 
         <motion.div
-          className="card space-y-5 p-6 md:p-10"
+          className="card space-y-4 p-6 md:p-10"
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.3 }}
           transition={{ duration: 0.5 }}
         >
           <p className="text-sm leading-relaxed text-zinc-300 md:text-base">
-            Spectra was born at the intersection of two passions: DJing and
-            artificial intelligence. Late nights spent mixing tracks led to a
-            familiar frustration — wanting to isolate a vocal, swap a bassline,
-            or rearrange a song's structure, but having no clean way to do it
-            without expensive studio tools or hours of manual editing.
+            Spectra was born where two passions collide — DJing and AI. Late
+            nights mixing tracks led to a familiar frustration: wanting to
+            isolate a vocal or swap a bassline, but having no clean way to do
+            it without expensive tools or hours of manual work.
           </p>
 
           <p className="text-sm leading-relaxed text-zinc-300 md:text-base">
-            Meanwhile, breakthroughs in deep learning were making the impossible
-            possible. Neural networks could now hear the individual
-            instruments inside a mixed recording — the same way a trained
-            musician's ear can pick apart a chord. The technology existed, but
-            it was locked behind research papers and command-line scripts.
-          </p>
-
-          <p className="text-sm leading-relaxed text-zinc-300 md:text-base">
-            So we decided to bridge the gap. We built Spectra to put the
-            power of AI stem separation into the hands of DJs, producers,
-            and music lovers — wrapped in a beautiful, intuitive interface that
-            feels like it belongs in your creative workflow. No setup, no
-            technical knowledge required. Just drop in a track and start
-            creating.
+            Deep learning changed that. Neural networks can now hear individual
+            instruments inside a mixed recording, but the technology was locked
+            behind research papers and command-line scripts. We built Spectra to
+            bridge that gap — AI-powered stem separation in a beautiful
+            interface that just works.
           </p>
 
           <p className="text-sm leading-relaxed text-zinc-400 md:text-base">
-            What started as a personal tool for weekend DJ sets is becoming
-            something bigger — a platform where anyone can deconstruct,
-            understand, and reimagine music.
+            What started as a personal tool for weekend DJ sets is becoming a
+            platform where anyone can deconstruct, understand, and reimagine
+            music.
           </p>
         </motion.div>
       </div>
