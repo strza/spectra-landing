@@ -9,7 +9,7 @@ export function Logo({ size = "sm" }: LogoProps) {
   const gap = size === "lg" ? 3 : 2;
   const textClass =
     size === "lg"
-      ? "font-display text-6xl font-black uppercase tracking-wide"
+      ? "font-display text-4xl font-black uppercase tracking-wide md:text-6xl"
       : "font-display text-lg font-bold tracking-wider";
 
   const bars = Array.from({ length: barCount }, (_, i) => {
