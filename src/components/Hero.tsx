@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { Logo } from "./Logo";
-import { MashupAnimation } from "./MashupAnimation";
+import { SpectralAnimation } from "./SpectralAnimation";
 
 export function Hero() {
   const scrollToWaitlist = useCallback(() => {
@@ -30,7 +30,7 @@ export function Hero() {
 
         {/* Mashup animation — full width */}
         <div className="mt-8 w-full md:mt-10">
-          <MashupAnimation />
+          <SpectralAnimation />
         </div>
 
         <button
