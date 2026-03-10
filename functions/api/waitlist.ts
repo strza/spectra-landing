@@ -2,7 +2,6 @@
 
 interface Env {
   RESEND_API_KEY: string;
-  RESEND_AUDIENCE_ID: string;
 }
 
 interface WaitlistRequest {
@@ -26,7 +25,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     }
 
     const resendResponse = await fetch(
-      `https://api.resend.com/audiences/${context.env.RESEND_AUDIENCE_ID}/contacts`,
+      "https://api.resend.com/contacts",
       {
         method: "POST",
         headers: {
