@@ -1,6 +1,5 @@
 import { useCallback } from "react";
 import { Logo } from "./Logo";
-import { SpectralAnimation } from "./SpectralAnimation";
 
 export function Hero() {
   const scrollToWaitlist = useCallback(() => {
@@ -28,14 +27,9 @@ export function Hero() {
           AI-powered stem separation and remixing for DJs and producers
         </p>
 
-        {/* Mashup animation — full width */}
-        <div className="mt-8 w-full md:mt-10">
-          <SpectralAnimation />
-        </div>
-
         <button
           onClick={scrollToWaitlist}
-          className="btn btn-primary mt-8 px-8 py-3.5 text-base md:text-lg"
+          className="btn btn-primary mt-10 px-8 py-3.5 text-base md:mt-12 md:text-lg"
         >
           Join the Waitlist
         </button>
