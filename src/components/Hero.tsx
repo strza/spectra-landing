@@ -1,6 +1,5 @@
 import { useCallback } from "react";
 import { Logo } from "./Logo";
-import { AuroraBackground } from "./AuroraBackground";
 import { MashupAnimation } from "./MashupAnimation";
 
 export function Hero() {
@@ -12,9 +11,7 @@ export function Hero() {
 
   return (
     <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 md:px-6">
-      <AuroraBackground />
-
-      {/* Subtle radial gradient overlay for depth */}
+      {/* Subtle radial gradient for depth */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute left-1/2 top-1/3 h-[500px] w-[500px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary/[0.06] blur-[100px]" />
       </div>
@@ -38,7 +35,7 @@ export function Hero() {
 
         <button
           onClick={scrollToWaitlist}
-          className="btn btn-primary mt-8 px-8 py-3.5 text-base md:mt-10 md:text-lg"
+          className="btn btn-primary mt-8 px-8 py-3.5 text-base md:text-lg"
         >
           Join the Waitlist
         </button>

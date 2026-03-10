@@ -82,11 +82,11 @@ export function AuroraBackground() {
   if (!ready) return null;
 
   return (
-    <div className="pointer-events-none absolute inset-0 z-0">
+    <div className="pointer-events-none fixed inset-0 z-0">
       <Particles
         id="aurora-particles"
         options={particleOptions}
-        className="pointer-events-auto absolute inset-0"
+        className="pointer-events-auto fixed inset-0"
       />
     </div>
   );
