@@ -1,9 +1,13 @@
 import { motion } from "framer-motion";
+import { Upload, Cpu, Download } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 interface Step {
   number: string;
   title: string;
   description: string;
+  Icon: LucideIcon;
+  color: string;
 }
 
 const steps: Step[] = [
@@ -11,54 +15,78 @@ const steps: Step[] = [
     number: "01",
     title: "Upload",
     description: "Drop in any track — MP3, WAV, FLAC",
+    Icon: Upload,
+    color: "#7C8BFF",
   },
   {
     number: "02",
     title: "AI Separates",
     description: "Stems are isolated in seconds using neural networks",
+    Icon: Cpu,
+    color: "#B78EE0",
   },
   {
     number: "03",
     title: "Remix & Download",
     description: "Rearrange, recombine, and download your creation",
+    Icon: Download,
+    color: "#36D9CA",
   },
 ];
 
 export function HowItWorks() {
   return (
-    <section className="relative px-6 py-32">
+    <section className="relative px-4 py-16 md:px-6 md:py-20">
       <div className="mx-auto max-w-4xl">
         <motion.h2
-          className="mb-16 text-center font-display text-3xl font-bold text-white md:text-4xl"
-          initial={{ opacity: 0, y: 30 }}
+          className="mb-10 text-center font-display text-2xl font-bold text-white md:mb-12 md:text-3xl"
+          initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, amount: 0.5 }}
-          transition={{ duration: 0.6 }}
+          transition={{ duration: 0.5 }}
         >
           How it works
         </motion.h2>
 
-        <div className="relative flex flex-col gap-12 md:gap-16">
-          <div className="absolute left-8 top-0 bottom-0 hidden w-px bg-gradient-to-b from-primary/50 via-aurora-purple/50 to-accent/50 md:block" />
-
+        <div className="grid gap-4 md:grid-cols-3 md:gap-5">
           {steps.map((step, i) => (
             <motion.div
               key={step.number}
-              className="flex items-start gap-6"
-              initial={{ opacity: 0, x: -30 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true, amount: 0.5 }}
-              transition={{ duration: 0.5, delay: i * 0.2 }}
+              className="card flex flex-col items-center p-6 text-center"
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, amount: 0.3 }}
+              transition={{ duration: 0.4, delay: i * 0.12 }}
             >
-              <div className="relative z-10 flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-full border border-primary/30 bg-surface font-display text-lg font-bold text-primary">
-                {step.number}
+              <div
+                className="mb-4 flex h-12 w-12 items-center justify-center rounded-full"
+                style={{
+                  backgroundColor: `${step.color}15`,
+                  border: `1px solid ${step.color}30`,
+                }}
+              >
+                <step.Icon
+                  size={22}
+                  style={{ color: step.color }}
+                  strokeWidth={1.5}
+                />
               </div>
-              <div className="pt-3">
-                <h3 className="mb-1 text-xl font-semibold text-white">
-                  {step.title}
-                </h3>
-                <p className="text-zinc-400">{step.description}</p>
+
+              <div className="mb-2 font-mono text-[10px] tracking-widest text-zinc-600 uppercase">
+                Step {step.number}
               </div>
+
+              <h3 className="mb-1.5 text-base font-semibold text-white">
+                {step.title}
+              </h3>
+              <p className="text-sm leading-relaxed text-zinc-400">
+                {step.description}
+              </p>
+
+              {/* Connecting arrow (hidden on mobile, shown between cards) */}
+              {i < steps.length - 1 && (
+                <div className="mt-4 hidden text-zinc-700 md:hidden">→</div>
+              )}
             </motion.div>
           ))}
         </div>

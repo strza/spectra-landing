@@ -41,7 +41,7 @@ export function WaitlistSignup() {
   );
 
   return (
-    <section id="waitlist" className="relative px-6 py-32">
+    <section id="waitlist" className="relative px-4 py-16 md:px-6 md:py-20">
       <div className="mx-auto max-w-lg">
         <motion.div
           className="card p-8 md:p-12"
