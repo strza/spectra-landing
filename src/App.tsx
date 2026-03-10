@@ -1,6 +1,5 @@
 import { Navbar } from "./components/Navbar";
 import { Hero } from "./components/Hero";
-import { AppShowcase } from "./components/AppShowcase";
 import { Features } from "./components/Features";
 import { HowItWorks } from "./components/HowItWorks";
 import { WaitlistSignup } from "./components/WaitlistSignup";
@@ -14,7 +13,6 @@ export default function App() {
       <div className="relative z-10">
         <Navbar />
         <Hero />
-        <AppShowcase />
         <Features />
         <HowItWorks />
         <WaitlistSignup />
