@@ -45,7 +45,8 @@ async function handleWaitlist(request: Request, env: Env): Promise<Response> {
       );
     }
 
-    const resendResponse = await fetch("https://api.resend.com/contacts", {
+    const audienceId = env.RESEND_AUDIENCE_ID || "efc7da45-6834-4c8a-86b2-4394556dfd12";
+    const resendResponse = await fetch(`https://api.resend.com/audiences/${audienceId}/contacts`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${env.RESEND_API_KEY}`,
