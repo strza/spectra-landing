@@ -1,12 +1,18 @@
+import { Navbar } from "./components/Navbar";
+
 export default function App() {
   return (
-    <div className="min-h-screen bg-background text-white flex flex-col items-center justify-center gap-8">
-      <h1 className="font-display text-6xl text-gradient">SPECTRA</h1>
-      <div className="card p-8">
-        <p className="text-zinc-400">Glassmorphic card</p>
-      </div>
-      <button className="btn btn-primary">Join Waitlist</button>
-      <button className="btn btn-secondary">Learn More</button>
+    <div className="min-h-screen bg-background text-white">
+      <Navbar />
+      <section className="flex h-screen items-center justify-center">
+        <h1 className="font-display text-6xl text-gradient">Hero</h1>
+      </section>
+      <section
+        id="waitlist"
+        className="flex h-screen items-center justify-center"
+      >
+        <h2 className="text-3xl text-white">Waitlist Section</h2>
+      </section>
     </div>
   );
 }
