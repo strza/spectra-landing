@@ -1,12 +1,11 @@
 import { Navbar } from "./components/Navbar";
+import { Hero } from "./components/Hero";
 
 export default function App() {
   return (
     <div className="min-h-screen bg-background text-white">
       <Navbar />
-      <section className="flex h-screen items-center justify-center">
-        <h1 className="font-display text-6xl text-gradient">Hero</h1>
-      </section>
+      <Hero />
       <section
         id="waitlist"
         className="flex h-screen items-center justify-center"
