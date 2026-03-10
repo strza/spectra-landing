@@ -62,7 +62,7 @@ async function handleWaitlist(request: Request, env: Env): Promise<Response> {
       const errorData = await resendResponse.text();
       console.error("Resend API error:", resendResponse.status, errorData);
       return new Response(
-        JSON.stringify({ error: `Resend error (${resendResponse.status}): ${errorData}` }),
+        JSON.stringify({ error: "Failed to join waitlist" }),
         { status: 500, headers }
       );
     }
